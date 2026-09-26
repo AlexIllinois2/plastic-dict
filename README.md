@@ -2,6 +2,11 @@
 
 丐版GoldenDict for Linux
 
+## 功能
+- 本地词典(牛津词典)
+- 在线翻译(有道, 必应)
+- 命令行翻译
+
 ## 安装
 
 ```bash
@@ -43,10 +48,10 @@ bun plastic-dict.ts --purge-cache  # 清空索引缓存
 bun plastic-dict.ts -h             # 帮助
 ```
 
-快捷键（替换原 Python 版入口）：
+快捷键样例：
 
 ```bash
-bash -lc 'bun ~/.local/app/plastic-dict/plastic-dict.ts "$(/usr/bin/wl-paste -n -p)"'
+bash -lc 'bun $HOME/.local/app/plastic-dict/plastic-dict.ts "$(/usr/bin/wl-paste -n -p)"'
 ```
 
 （注意：入口需要 `cd` 到本目录或用绝对路径，`bun plastic-dict.ts` 依赖同目录
