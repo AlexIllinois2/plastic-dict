@@ -1,0 +1,18 @@
+{
+  "name": "dic-bun",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "dic — 单文件词典工具 (Bun + 系统 WebKitGTK): 本地 MDX/MDD 词典 + Bing 翻译 + 在线词典站",
+  "scripts": {
+    "start": "bun dic.ts",
+    "purge-cache": "bun dic.ts --purge-cache"
+  },
+  "dependencies": {
+    "dom-serializer": "^2.0.0",
+    "domhandler": "^5.0.3",
+    "htmlparser2": "^9.1.0",
+    "js-mdict": "7.0.0",
+    "webview-bun": "2.4.0"
+  }
+}
