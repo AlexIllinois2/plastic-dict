@@ -1,18 +1,18 @@
 #!/usr/bin/env bun
 /**
- * dic — 单文件整合版（Bun + TypeScript 重写版）
+ * plastic-dict — 单文件整合版（Bun + TypeScript 重写版）
  *
  * 原 Python 版（pywebview + PySide6/FreeSimpleGUI + mdict-mquery + lxml）的移植。
  * 去掉了 Qt/FreeSimpleGUI 原生窗口与 GTK 层钩子，只保留系统 WebKitGTK 窗口
  * （webview-bun → 系统 libwebkitgtk-6.0 / GTK4）+ CLI 两条路径。
  *
  * 用法:
- *   ./dic.ts "<content>"     自动: 单词→WebView 本地词典; 短语/句子→WebView 在线词典
- *   ./dic.ts -t "<content>"  命令行查词/翻译 (短语时弹 WebView 在线词典窗口)
- *   ./dic.ts -w "<content>"  强制 WebView (与默认一致, 保留参数兼容)
- *   ./dic.ts --purge-cache   清空词典索引磁盘缓存
+ *   ./plastic-dict.ts "<content>"     自动: 单词→WebView 本地词典; 短语/句子→WebView 在线词典
+ *   ./plastic-dict.ts -t "<content>"  命令行查词/翻译 (短语时弹 WebView 在线词典窗口)
+ *   ./plastic-dict.ts -w "<content>"  强制 WebView (与默认一致, 保留参数兼容)
+ *   ./plastic-dict.ts --purge-cache   清空词典索引磁盘缓存
  *
- * 快捷键: bash -lc 'bun ~/.local/script/dic.ts "$(/usr/bin/wl-paste -n -p)"'
+ * 快捷键: bash -lc 'bun ~/.local/app/plastic-dict/plastic-dict.ts "$(/usr/bin/wl-paste -n -p)"'
  *
  * 依赖:
  *   1) Bun >= 1.1
@@ -24,21 +24,21 @@
  *      domhandler / dom-serializer —— bun install 即可
  *   4) 音频(可选): mpv / ffplay / cvlc / paplay / aplay 任一即可
  *   5) 离线词典: https://github.com/yanyingwang/goldendict 的百度网盘
- *      dicts/Oxford9 移到 ~/.local/share/golden-dict/Oxford
+ *      dicts/Oxford9 移到 ~/.local/share/goldendict/Oxford9
  *      (可用环境变量 GOLDENDICT_DIR 覆盖)
  *
- * 配置文件 ~/.config/dic/config.json (自动创建, 可手工编辑):
+ * 配置文件 ~/.config/plastic-dict/config.json (自动创建, 可手工编辑):
  *   zoom      缩放(0.5~3.0, Ctrl+=/-/0 自动保存)
  *   width     窗口宽(320~7680, 默认 760)
  *   height    窗口高(300~4320, 默认 860)
  *   maximized 窗口最大化(true/false)
  *
  * 说明:
- *   - 词典索引磁盘缓存: ~/.cache/dic/index/ (按文件大小+mtime 失效,
+ *   - 词典索引磁盘缓存: ~/.cache/plastic-dict/index/ (按文件大小+mtime 失效,
  *     首次启动构建, 之后 CLI/GUI 冷启动无需重新解析全量词条)
  *   - 原版 dicres:// 协议改为内置 127.0.0.1 随机端口本地 HTTP 服务
- *   - DIC_DUMP=1 时把最近一次词条 HTML/CSS 存到 /tmp/dic_last.html|css
- *   - 崩溃日志: /tmp/dic-crash.log
+ *   - DIC_DUMP=1 时把最近一次词条 HTML/CSS 存到 /tmp/plastic-dict/last.html|css
+ *   - 崩溃日志: /tmp/plastic-dict/crash.log
  */
 
 import { MDX, MDD } from "js-mdict";
@@ -60,15 +60,15 @@ function expandUser(p: string): string {
 }
 
 const DICT_DIR = expandUser(
-  process.env.GOLDENDICT_DIR || "~/.local/share/golden-dict/Oxford",
+  process.env.GOLDENDICT_DIR || "~/.local/share/goldendict/Oxford9",
 );
-const AUDIO_DIR = "/tmp/dic/audio";
-const INDEX_CACHE_DIR = path.join(os.homedir(), ".cache", "dic", "index");
-const CFG_PATH = path.join(os.homedir(), ".config", "dic", "config.json");
-const DICT_NAME = "dic";
+const AUDIO_DIR = "/tmp/plastic-dict/audio";
+const INDEX_CACHE_DIR = path.join(os.homedir(), ".cache", "plastic-dict", "index");
+const CFG_PATH = path.join(os.homedir(), ".config", "plastic-dict", "config.json");
+const DICT_NAME = "plastic-dict";
 
 function logErr(...a: unknown[]) {
-  console.error("[dic]", ...a);
+  console.error("[plastic-dict]", ...a);
 }
 
 // ============================================================
@@ -1906,8 +1906,8 @@ export async function runGuiWeb(
   function dump(htmlText: string, css: string): void {
     if (!process.env.DIC_DUMP) return;
     try {
-      fs.writeFileSync("/tmp/dic_last.html", htmlText);
-      fs.writeFileSync("/tmp/dic_last.css", css);
+      fs.writeFileSync("/tmp/plastic-dict/last.html", htmlText);
+      fs.writeFileSync("/tmp/plastic-dict/last.css", css);
     } catch {
       /* ignore */
     }
@@ -1939,7 +1939,7 @@ export async function runGuiWeb(
   function playLog(...a: unknown[]): void {
     try {
       fs.appendFileSync(
-        "/tmp/dic_play.log",
+        "/tmp/plastic-dict/play.log",
         new Date().toTimeString().slice(0, 8) +
           " " +
           a.map(String).join(" ") +
@@ -1952,7 +1952,7 @@ export async function runGuiWeb(
 
   async function apiPlay(ref: string): Promise<string> {
     const word = state.word || "";
-    logErr("[dic.play]", ref, "| word:", word);
+    logErr("[plastic-dict.play]", ref, "| word:", word);
     playLog("play called:", JSON.stringify(ref), "| word:", JSON.stringify(word));
     if (!state.mdx || !ref) return "⛔ play: 内部状态缺失";
     ref = String(ref).trim();
@@ -2094,7 +2094,7 @@ export async function runGuiWeb(
 
   // 无头模式: 只起本地服务(自测用), 不创建窗口
   if (opts?.headless) {
-    console.log(`[dic] headless server: ${baseUrl}`);
+    console.log(`[plastic-dict] headless server: ${baseUrl}`);
     await new Promise<never>(() => {}); // 挂住直到被 kill
     return;
   }
@@ -2287,13 +2287,13 @@ function printUsage(): number {
   console.log(
     [
       "用法:",
-      '  ./dic.ts "<content>"   单词→WebView 本地词典; 短语/句子→WebView 在线词典',
-      '  ./dic.ts -g "<content>" 同上',
-      '  ./dic.ts -w "<content>" 强制 WebView (不做自动切换, 现已与默认一致)',
-      '  ./dic.ts -t "<content>" 命令行模式 (短语时弹 WebView 在线词典窗口)',
-      "  ./dic.ts --purge-cache  清空词典索引磁盘缓存",
+      '  ./plastic-dict.ts "<content>"   单词→WebView 本地词典; 短语/句子→WebView 在线词典',
+      '  ./plastic-dict.ts -g "<content>" 同上',
+      '  ./plastic-dict.ts -w "<content>" 强制 WebView (不做自动切换, 现已与默认一致)',
+      '  ./plastic-dict.ts -t "<content>" 命令行模式 (短语时弹 WebView 在线词典窗口)',
+      "  ./plastic-dict.ts --purge-cache  清空词典索引磁盘缓存",
       "",
-      "配置: ~/.config/dic/config.json (zoom/width/height/maximized)",
+      "配置: ~/.config/plastic-dict/config.json (zoom/width/height/maximized)",
     ].join("\n"),
   );
   return 0;
@@ -2302,7 +2302,7 @@ function printUsage(): number {
 async function main(): Promise<number> {
   const args = process.argv.slice(2);
   if (!args.length) {
-    console.error('用法: ./dic.ts [-g|-w|-t] "<content>"');
+    console.error('用法: ./plastic-dict.ts [-g|-w|-t] "<content>"');
     return 1;
   }
   if (args[0] === "--native") {
@@ -2324,7 +2324,7 @@ async function main(): Promise<number> {
   if (args[0] === "-g" || args[0] === "--gui") {
     const content = args.slice(1).join(" ").trim();
     if (!content) {
-      console.error('用法: ./dic.ts -g "<content>"');
+      console.error('用法: ./plastic-dict.ts -g "<content>"');
       return 1;
     }
     // 单词→本地词典, 短语/句子→在线词典, 均在 WebView 内
@@ -2334,7 +2334,7 @@ async function main(): Promise<number> {
   if (args[0] === "-w" || args[0] === "--webview") {
     const content = args.slice(1).join(" ").trim();
     if (!content) {
-      console.error('用法: ./dic.ts -w "<content>"');
+      console.error('用法: ./plastic-dict.ts -w "<content>"');
       return 1;
     }
     await runGuiWeb(content);
@@ -2343,7 +2343,7 @@ async function main(): Promise<number> {
   if (args[0] === "-t" || args[0] === "--text") {
     const content = args.slice(1).join(" ").trim();
     if (!content) {
-      console.error('用法: ./dic.ts -t "<content>"');
+      console.error('用法: ./plastic-dict.ts -t "<content>"');
       return 1;
     }
     return runCli(content);
@@ -2362,7 +2362,7 @@ async function main(): Promise<number> {
 process.on("uncaughtException", (err) => {
   try {
     fs.appendFileSync(
-      "/tmp/dic-crash.log",
+      "/tmp/plastic-dict/crash.log",
       `[${new Date().toISOString()}] ${err.stack ?? err}\n`,
     );
   } catch {
@@ -2377,7 +2377,7 @@ if (import.meta.main) {
     .catch((err) => {
       try {
         fs.appendFileSync(
-          "/tmp/dic-crash.log",
+          "/tmp/plastic-dict/crash.log",
           `[${new Date().toISOString()}] ${err?.stack ?? err}\n`,
         );
       } catch {
