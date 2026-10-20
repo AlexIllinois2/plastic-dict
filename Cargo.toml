@@ -1,0 +1,62 @@
+[package]
+name = "plastic-dict"
+version = "2.0.0"
+edition = "2021"
+description = "丐版 GoldenDict for Linux — Rust + Dioxus Native(Blitz) 重写版: 本地 MDX/MDD 词典 + 在线翻译 + 在线词典站"
+license = "MIT"
+rust-version = "1.85"
+
+[dependencies]
+# GUI: Dioxus Native 渲染器 (Blitz HTML/CSS 引擎 + Vello/WGPU)
+# 说明:
+#   1) 关闭默认的 net feature — blitz-net 走 reqwest 默认特性(native-tls), Linux 需要
+#      OpenSSL 系统库; 本 crate 的图片全部以 data: URI 内联 (blitz-shell 的 data-uri
+#      feature 提供 DataUriNetProvider, 见 gui/mod.rs), 网络请求全部走本 crate 自己的
+#      reqwest(rustls)。
+#   2) dioxus-native 0.7.10 的 vello-hybrid feature 并不存在。
+dioxus = { version = "0.7.10", default-features = false, features = ["macro", "html", "signals", "hooks"] }
+# 注意 1: dioxus-native 0.7.10 的 src/config.rs 无条件引用 dioxus_cli_config,
+#       但该 crate 只有 hot-reload 才会启用 — 不开该 feature 编译失败 (上游 bug),
+#       故此处显式开启 hot-reload (release 下 devtools 连接被 debug_assertions 排除, 无副作用)。
+# 注意 2: 不开默认的 net feature — blitz-net 走 reqwest 默认特性(native-tls),
+#       Linux 需要 OpenSSL; 词典图片全部内联 data: URI (blitz-shell data-uri, 见 gui/mod.rs)。
+dioxus-native = { version = "0.7.10", default-features = false, features = ["accessibility", "html", "svg", "system-fonts", "clipboard", "hot-reload"] }
+
+# Blitz 底层 crate — 自写 launch 流程 (gui/mod.rs) 注入 data-uri net provider 所需
+# autofocus: <input autofocus="true"> 启动时自动聚焦 (否则无焦点时键盘事件到不了根 div)
+blitz-shell = { version = "0.2", default-features = false, features = ["data-uri"] }
+blitz-dom = { version = "0.2.4", default-features = false, features = ["autofocus", "svg", "system_fonts", "woff-rust", "file_input", "accessibility"] }
+blitz-html = { version = "0.2", default-features = false }
+blitz-traits = { version = "0.2", default-features = false }
+# parley: 只为 fontique 的 Blob/FontInfoOverride (注册词典内嵌字体, 见 gui/fonts.rs);
+# 版本与 feature 必须与 blitz-dom 的依赖一致, 否则会多编译一份 parley
+parley = { version = "0.6", default-features = false, features = ["std"] }
+data-url = "0.3"
+webbrowser = "1"   # <a href> 点击 → 系统浏览器 (自写 NavigationProvider)
+keyboard-types = { version = "0.7", default-features = false }  # Key/Modifiers (onkeydown)
+
+# tokio: 给 reqwest 异步客户端提供 reactor (dioxus-native 未开 net feature, 无内置 runtime)
+tokio = { version = "1", features = ["rt-multi-thread", "time"] }
+
+# 网络 (Bing 翻译 + 在线词典页抓取); rustls 避免依赖系统 OpenSSL
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "blocking"] }
+
+# MDX/MDD 解析
+flate2 = "1"            # zlib 解压 (miniz_oxide, 纯 Rust)
+encoding_rs = "0.8"     # UTF-16LE / GB18030 / Big5 解码
+ripemd = "0.2"          # RIPEMD-128 (MDX encrypt 1/2 密钥派生)
+base64 = "0.22"         # data URI / MDD base64
+
+# HTML 解析/序列化 (CLI 纯文本渲染 + 词条 HTML 预处理)
+# 注意: html5ever 0.39 与 markup5ever_rcdom 0.39 配对 (同一 markup5ever 0.39);
+#       html5ever 0.40 配 markup5ever 0.40, 与 rcdom 不兼容 (Trait 版本冲突)。
+html5ever = "0.39"
+markup5ever_rcdom = "0.39"
+regex = "1"
+
+# 配置
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+incremental = true
