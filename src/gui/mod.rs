@@ -28,6 +28,11 @@ use dioxus_native::{
 };
 use std::sync::Arc;
 use std::sync::OnceLock;
+use winit::application::ApplicationHandler;
+use winit::dpi::PhysicalPosition;
+use winit::event::{MouseScrollDelta, StartCause, WindowEvent};
+use winit::event_loop::ActiveEventLoop;
+use winit::window::WindowId;
 
 /// 启动时传入的初始查询词 (对应 TS 版 initialText)
 static INITIAL: OnceLock<String> = OnceLock::new();
@@ -52,6 +57,8 @@ pub fn run(initial: Option<String>) {
     let w = crate::config::cfg_int(&cfg, "width", 760, 320, 7680);
     let h = crate::config::cfg_int(&cfg, "height", 860, 300, 4320);
     let maximized = cfg.maximized.unwrap_or(false);
+    // 滚轮步进: 每格像素数 (blitz-shell 写死 20px, 太小)
+    let scroll_step = crate::config::cfg_int(&cfg, "scroll_step", 135, 20, 240);
 
     let mut attrs = WindowAttributes::default()
         .with_title(crate::paths::DICT_NAME)
@@ -60,7 +67,7 @@ pub fn run(initial: Option<String>) {
         attrs = attrs.with_maximized(true);
     }
 
-    launch(app::App, attrs);
+    launch(app::App, attrs, scroll_step as f64);
 }
 
 pub fn initial_word() -> &'static str {
@@ -68,7 +75,7 @@ pub fn initial_word() -> &'static str {
 }
 
 /// launch_cfg 的等价复刻 (注入 data-uri net provider, 不开 net feature)
-fn launch(app: fn() -> Element, attrs: WindowAttributes) {
+fn launch(app: fn() -> Element, attrs: WindowAttributes, scroll_step: f64) {
     let event_loop = create_default_event_loop::<BlitzShellEvent>();
 
     // 虚拟 DOM
@@ -99,6 +106,52 @@ fn launch(app: fn() -> Element, attrs: WindowAttributes) {
     let renderer = DioxusNativeWindowRenderer::with_features_and_limits(None, None);
     let config = WindowConfig::with_attributes(Box::new(doc) as _, renderer, attrs);
 
-    let mut application = DioxusNativeApplication::new(event_loop.create_proxy(), config);
+    let mut application = WheelStepApp {
+        inner: DioxusNativeApplication::new(event_loop.create_proxy(), config),
+        step: scroll_step,
+    };
     event_loop.run_app(&mut application).unwrap();
+}
+
+/// 滚轮步进包装器: blitz-shell 0.2.3 把 `LineDelta` 写死为 20px/格, 无法配置。
+/// 这里在事件进入 `DioxusNativeApplication` 前, 把一格滚轮折算成 `step` 像素的
+/// `PixelDelta`, 其它事件原样转发。
+struct WheelStepApp {
+    inner: DioxusNativeApplication,
+    step: f64,
+}
+
+impl ApplicationHandler<BlitzShellEvent> for WheelStepApp {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.inner.resumed(event_loop);
+    }
+
+    fn suspended(&mut self, event_loop: &ActiveEventLoop) {
+        self.inner.suspended(event_loop);
+    }
+
+    fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+        self.inner.new_events(event_loop, cause);
+    }
+
+    fn window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: WindowId,
+        mut event: WindowEvent,
+    ) {
+        if let WindowEvent::MouseWheel { delta, .. } = &mut event {
+            if let MouseScrollDelta::LineDelta(x, y) = *delta {
+                *delta = MouseScrollDelta::PixelDelta(PhysicalPosition::new(
+                    x as f64 * self.step,
+                    y as f64 * self.step,
+                ));
+            }
+        }
+        self.inner.window_event(event_loop, window_id, event);
+    }
+
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: BlitzShellEvent) {
+        self.inner.user_event(event_loop, event);
+    }
 }

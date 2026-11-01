@@ -46,7 +46,7 @@ cargo build --release
 ```
 plastic-dict(.exe)      # 二进制本体
 dicts/                  # 词典 (.mdx/.mdd, 同名 .css 自动拼接; 支持 词干.N.mdd 多分卷)
-config/config.json      # 配置 (zoom/width/height/maximized)
+config/config.json      # 配置 (zoom/width/height/maximized/scroll_step)
 config/extra.css        # 可选: 用户 CSS 补丁, 追加在词典 CSS 之后
 cache/index/            # 索引缓存 (.pdc, 词典 size/mtime 变化自动失效)
 cache/audio/            # 发音落地

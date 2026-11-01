@@ -54,6 +54,10 @@ html5ever = "0.39"
 markup5ever_rcdom = "0.39"
 regex = "1"
 
+# winit: 仅为包装 ApplicationHandler, 把滚轮 LineDelta 换成可配像素步进
+# (blitz-shell 0.2.3 对 LineDelta 写死 ×20px; 用 PixelDelta 绕开该常量)
+winit = { version = "0.30", default-features = false }
+
 # 配置
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
