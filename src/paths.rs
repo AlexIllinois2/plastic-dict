@@ -1,11 +1,11 @@
 //! 路径与全局常量 (便携包模式)
 //!
-//! 所有数据 (词典/配置/缓存/日志) 都放在**本二进制所在目录**下, 整个目录
-//! 拷走即迁移:
+//! 除发音临时文件外, 所有数据 (词典/配置/缓存/日志) 都放在**本二进制所在目录**下,
+//! 整个目录拷走即迁移:
 //!   <exe_dir>/dicts/            词典 (.mdx/.mdd/.css; GOLDENDICT_DIR 可覆盖)
 //!   <exe_dir>/config/config.json
 //!   <exe_dir>/cache/index/      索引缓存 (.pdc)
-//!   <exe_dir>/cache/audio/      发音落地
+//!   /tmp/plastic-dict/audio/    发音落地 (一次性小文件, 不放进便携目录)
 //!   <exe_dir>/logs/             crash.log / play.log / DIC_DUMP 输出
 
 use std::path::PathBuf;
@@ -65,8 +65,19 @@ pub fn dict_dir() -> PathBuf {
 }
 
 /// 发音音频解压落地目录
+///
+/// 这些是按词生成的一次性小文件 (每次播放都重新解压写盘), 留在便携目录里
+/// 既无意义又会不断累积, 所以 Linux 上放到 /tmp (重启自动清理);
+/// Windows 没有 /tmp 约定, 仍放 <exe>/cache/audio。
 pub fn audio_dir() -> PathBuf {
-    exe_dir().join("cache").join("audio")
+    #[cfg(unix)]
+    {
+        PathBuf::from("/tmp").join(DICT_NAME).join("audio")
+    }
+    #[cfg(not(unix))]
+    {
+        exe_dir().join("cache").join("audio")
+    }
 }
 
 /// 词典索引磁盘缓存目录
@@ -177,17 +188,19 @@ pub fn log_err(args: impl std::fmt::Display) {
 mod tests {
     use super::*;
 
-    /// 便携包核心不变量: 除词典目录 (可被 GOLDENDICT_DIR 覆盖) 外,
+    /// 便携包核心不变量: 除词典目录 (可被 GOLDENDICT_DIR 覆盖) 和发音临时目录外,
     /// 所有数据路径都必须落在本二进制所在目录下。
     /// (刻意不测 dict_dir: 它与 prepare 测试争抢 GOLDENDICT_DIR 环境变量)
     #[test]
     fn portable_paths_live_under_exe_dir() {
         let root = exe_dir();
         assert!(root.is_absolute(), "exe_dir 应为绝对路径: {root:?}");
-        for p in [index_cache_dir(), audio_dir(), crash_log(), play_log()] {
+        for p in [index_cache_dir(), crash_log(), play_log()] {
             assert!(p.starts_with(&root), "{p:?} 不在 {root:?} 下");
         }
         assert!(cfg_path().starts_with(&root));
+        #[cfg(unix)]
+        assert_eq!(audio_dir(), PathBuf::from("/tmp/plastic-dict/audio"));
     }
 
     #[test]
