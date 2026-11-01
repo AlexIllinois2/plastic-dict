@@ -65,6 +65,11 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      # gh release create 需要 git 上下文 (工作流在 tag 上触发, fetch-depth 0 可取到 tag)
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
