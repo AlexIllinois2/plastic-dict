@@ -1,0 +1,85 @@
+name: release
+
+# 推送 v* 标签时, 为 Linux x86-64 / arm64 各构建一份便携包并发布 Release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: build (${{ matrix.pkg }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 用 22.04 编 x86-64: glibc 2.35, 兼容较老的发行版
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            pkg: linux-x64
+          # arm64 用 GitHub 原生 arm 运行器, 避免交叉编译 fontconfig/ring
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            pkg: linux-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # yeslogic-fontconfig-sys 需要 fontconfig 头文件/库; 其余 C 依赖 (ring) 自带构建
+      - name: 安装系统依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config libfontconfig1-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: 构建 release
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: "打包 (便携目录: 可执行文件 + dicts/ + README)"
+        run: |
+          mkdir -p dist/dicts
+          cp "target/${{ matrix.target }}/release/plastic-dict" dist/
+          cp README.md dist/
+          strip dist/plastic-dict
+          tar -C dist -czf "plastic-dict-${{ matrix.pkg }}.tar.gz" .
+          ls -lh "plastic-dict-${{ matrix.pkg }}.tar.gz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.pkg }}
+          path: plastic-dict-${{ matrix.pkg }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: 发布 Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: 生成 SHA256SUMS
+        run: |
+          cd artifacts
+          sha256sum *.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: 创建 Release 并上传产物
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            artifacts/*.tar.gz artifacts/SHA256SUMS \
+            --generate-notes --verify-tag
