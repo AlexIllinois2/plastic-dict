@@ -1,13 +1,12 @@
 # plastic-dict
 
-丐版 GoldenDict — **Rust + Dioxus Native (Blitz) 重写版**。
+丐版 GoldenDict — **Rust + Dioxus Native (Blitz) **。
 
-本地 MDX/MDD 词典（牛津 9）+ Bing 在线翻译 + 在线词典，打包为**单一可执行文件**：
-没有 Bun/Node 运行时，没有 GTK/WebKit 系统依赖，也没有 JS 引擎——GUI 的
+本地 MDX/MDD 词典（牛津 9）+ Bing 在线翻译 + 在线词典：
+没有运行时，没有 GTK/WebKit 系统依赖，也没有 JS 引擎——GUI 的
 HTML/CSS 由 Blitz（Stylo + Taffy + Vello/WGPU）原生渲染。
 
-**便携包模式**：词典、配置、缓存、日志等所有数据都放在本二进制所在目录下，
-整个目录拷走即迁移，不写注册表、不写用户主目录。
+**便携包模式**：所有数据都在本二进制所在目录。
 
 ## 功能
 
@@ -45,7 +44,7 @@ cargo build --release
 
 ```
 plastic-dict(.exe)      # 二进制本体
-dicts/                  # 词典 (.mdx/.mdd, 同名 .css 自动拼接; 支持 词干.N.mdd 多分卷)
+dicts/Oxford9           # 词典 (.mdx/.mdd, 同名 .css 自动拼接; 支持 词干.N.mdd 多分卷)
 config/config.json      # 配置 (zoom/width/height/maximized/scroll_step)
 config/extra.css        # 可选: 用户 CSS 补丁, 追加在词典 CSS 之后
 cache/index/            # 索引缓存 (.pdc, 词典 size/mtime 变化自动失效)
@@ -54,7 +53,7 @@ logs/                   # crash.log / play.log / DIC_DUMP 输出
 ```
 
 把 [goldendict](https://github.com/yanyingwang/goldendict) 百度网盘
-`dicts/Oxford9` 里的内容放进 `dicts/` 即可（首次启动也会自动建好这些目录）。
+`dicts/Oxford9` 里的内容放到 `dicts/Oxford9` 即可。
 用环境变量 `GOLDENDICT_DIR` 可把词典指到其它目录（不动包内结构时使用）。
 
 CSS 覆盖顺序是 **词典自带 CSS → 程序内置修正（`src/gui/style.rs` 的
@@ -70,6 +69,11 @@ plastic-dict -t "apple"          # CLI 纯文本（未收录自动 Bing 翻译�
 plastic-dict -t "hello world"    # CLI：短语仍会弹出 GUI 在线词典窗口
 plastic-dict --purge-cache       # 清空索引缓存
 plastic-dict -h                  # 帮助
+```
+
+linux系统快捷键配置命令示例(翻译鼠标选中内容):
+``` bash
+bash -lc '$HOME/.local/app/plastic-dict/plastic-dict "$(/usr/bin/wl-paste -n -p)"'
 ```
 
 快捷键（GUI）：
