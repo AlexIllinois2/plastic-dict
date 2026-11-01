@@ -5,6 +5,7 @@
 pub mod cache;
 pub mod parse;
 
+use memmap2::Mmap;
 use parse::{
     decode_str, decompress_block, Ext, KeyWordItem, ParsedIndex, TextEncoding,
 };
@@ -18,7 +19,9 @@ use std::time::Instant;
 
 pub struct MdictFile {
     pub path: String,
-    pub data: Vec<u8>,
+    /// 词典文件映射 (mmap): 只读按需调页, 不把整包拷进堆
+    /// (牛津三卷 MDD 共 700MB, 整读会让常驻内存逼近 1GB)
+    pub data: Mmap,
     pub index: ParsedIndex,
 }
 
@@ -26,7 +29,7 @@ impl MdictFile {
     /// 打开 (优先读磁盘索引缓存)
     pub fn open(path: &str) -> Result<Self, String> {
         if let Some(index) = cache::load_index(path) {
-            let data = std::fs::read(path).map_err(|e| format!("读取失败: {e}"))?;
+            let data = map_file(path)?;
             return Ok(Self {
                 path: path.to_string(),
                 data,
@@ -38,7 +41,7 @@ impl MdictFile {
 
     /// 打开 (强制重新解析, 成功后写缓存)
     pub fn open_uncached(path: &str) -> Result<Self, String> {
-        let data = std::fs::read(path).map_err(|e| format!("读取失败 {path}: {e}"))?;
+        let data = map_file(path)?;
         let ext = Ext::from_path(path);
         let index = parse::parse_index(&data, path, ext)?;
         cache::save_index(&index, path);
@@ -135,6 +138,16 @@ impl MdictFile {
     pub fn all_keys(&self) -> Vec<String> {
         self.index.keyword_list.iter().map(|k| k.key_text.clone()).collect()
     }
+}
+
+/// 以只读方式 mmap 词典文件
+///
+/// 前提: 词典文件在运行期间不会被外部改写/截断 (用户手工放置, 程序只读)。
+/// 若真被外部截断, 访问已失效页会触发 SIGBUS。
+fn map_file(path: &str) -> Result<Mmap, String> {
+    let f = std::fs::File::open(path).map_err(|e| format!("打开失败 {path}: {e}"))?;
+    // SAFETY: 见本函数注释中的前提
+    unsafe { Mmap::map(&f) }.map_err(|e| format!("映射失败 {path}: {e}"))
 }
 
 /// MDD key 规范化: `/` → `\`, 补前导 `\` (对应 TS MDD.locate)
@@ -691,7 +704,8 @@ mod tests {
         );
 
         // ---- MDX 解析 (2 key blocks / 2 record blocks) ----
-        let data = std::fs::read(&mdx_path).unwrap();
+        let mdx_file = std::fs::File::open(&mdx_path).unwrap();
+        let data = unsafe { memmap2::Mmap::map(&mdx_file) }.unwrap();
         let idx = parse_index(&data, "Oxford9.mdx", Ext::Mdx).expect("MDX 解析失败");
         let keys: Vec<&str> = idx.keyword_list.iter().map(|k| k.key_text.as_str()).collect();
         assert_eq!(keys, vec!["apple", "banana", "run"]);
@@ -727,7 +741,8 @@ mod tests {
         assert!(f.lookup_text("zzznotaword").is_none());
 
         // ---- MDD 资源定位 ----
-        let mdata = std::fs::read(&mdd_path).unwrap();
+        let mdd_file = std::fs::File::open(&mdd_path).unwrap();
+        let mdata = unsafe { memmap2::Mmap::map(&mdd_file) }.unwrap();
         let midx = parse_index(&mdata, "Oxford9.mdd", Ext::Mdd).expect("MDD 解析失败");
         let mkeys: Vec<&str> = midx.keyword_list.iter().map(|k| k.key_text.as_str()).collect();
         assert_eq!(mkeys, vec!["\\apple.png", "\\sound_us_apple.spx"]);

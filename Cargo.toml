@@ -43,6 +43,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 
 # MDX/MDD 解析
 flate2 = "1"            # zlib 解压 (miniz_oxide, 纯 Rust)
+memmap2 = "0.9"         # 词典文件只读 mmap (避免 700MB MDD 全量驻留堆)
 encoding_rs = "0.8"     # UTF-16LE / GB18030 / Big5 解码
 ripemd = "0.2"          # RIPEMD-128 (MDX encrypt 1/2 密钥派生)
 base64 = "0.22"         # data URI / MDD base64
